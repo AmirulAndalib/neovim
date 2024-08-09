@@ -268,12 +268,12 @@ function vim.fn.assert_exception(error, msg) end
 --- <
 --- If {msg} is empty then it is not used.  Do this to get the
 --- default message when passing the {lnum} argument.
----
+---           *E1115*
 --- When {lnum} is present and not negative, and the {error}
 --- argument is present and matches, then this is compared with
 --- the line number at which the error was reported. That can be
 --- the line number in a function or in a script.
----
+---           *E1116*
 --- When {context} is present it is used as a pattern and matched
 --- against the context (script name or function name) where
 --- {lnum} is located in.
@@ -1586,8 +1586,10 @@ function vim.fn.eventhandler() end
 --- This function checks if an executable with the name {expr}
 --- exists.  {expr} must be the name of the program without any
 --- arguments.
+---
 --- executable() uses the value of $PATH and/or the normal
---- searchpath for programs.    *PATHEXT*
+--- searchpath for programs.
+---           *PATHEXT*
 --- On MS-Windows the ".exe", ".bat", etc. can optionally be
 --- included.  Then the extensions in $PATHEXT are tried.  Thus if
 --- "foo.exe" does not exist, "foo.exe.bat" can be found.  If
@@ -1597,8 +1599,13 @@ function vim.fn.eventhandler() end
 --- then the name is also tried without adding an extension.
 --- On MS-Windows it only checks if the file exists and is not a
 --- directory, not if it's really executable.
---- On Windows an executable in the same directory as Vim is
---- always found (it is added to $PATH at |startup|).
+--- On MS-Windows an executable in the same directory as the Vim
+--- executable is always found (it's added to $PATH at |startup|).
+---       *NoDefaultCurrentDirectoryInExePath*
+--- On MS-Windows an executable in Vim's current working directory
+--- is also normally found, but this can be disabled by setting
+--- the $NoDefaultCurrentDirectoryInExePath environment variable.
+---
 --- The result is a Number:
 ---   1  exists
 ---   0  does not exist
@@ -1992,6 +1999,19 @@ function vim.fn.feedkeys(string, mode) end
 --- @param file string
 --- @return any
 function vim.fn.file_readable(file) end
+
+--- Copy the file pointed to by the name {from} to {to}. The
+--- result is a Number, which is |TRUE| if the file was copied
+--- successfully, and |FALSE| when it failed.
+--- If a file with name {to} already exists, it will fail.
+--- Note that it does not handle directories (yet).
+---
+--- This function is not available in the |sandbox|.
+---
+--- @param from string
+--- @param to string
+--- @return 0|1
+function vim.fn.filecopy(from, to) end
 
 --- The result is a Number, which is |TRUE| when a file with the
 --- name {file} exists, and can be read.  If {file} doesn't exist,
@@ -4645,6 +4665,24 @@ function vim.fn.interrupt() end
 --- @param expr any
 --- @return any
 function vim.fn.invert(expr) end
+
+--- The result is a Number, which is |TRUE| when {path} is an
+--- absolute path.
+--- On Unix, a path is considered absolute when it starts with '/'.
+--- On MS-Windows, it is considered absolute when it starts with an
+--- optional drive prefix and is followed by a '\' or '/'. UNC paths
+--- are always absolute.
+--- Example: >vim
+---   echo isabsolutepath('/usr/share/')  " 1
+---   echo isabsolutepath('./foobar')    " 0
+---   echo isabsolutepath('C:\Windows')  " 1
+---   echo isabsolutepath('foobar')    " 0
+---   echo isabsolutepath('\\remote\file')  " 1
+--- <
+---
+--- @param path any
+--- @return 0|1
+function vim.fn.isabsolutepath(path) end
 
 --- The result is a Number, which is |TRUE| when a directory
 --- with the name {directory} exists.  If {directory} doesn't

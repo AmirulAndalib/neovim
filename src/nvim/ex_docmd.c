@@ -81,6 +81,7 @@
 #include "nvim/os/os_defs.h"
 #include "nvim/os/shell.h"
 #include "nvim/path.h"
+#include "nvim/plines.h"
 #include "nvim/popupmenu.h"
 #include "nvim/pos_defs.h"
 #include "nvim/profile.h"
@@ -1079,7 +1080,6 @@ void *getline_cookie(LineGetter fgetline, void *cookie)
 /// @return  the buffer number.
 static int compute_buffer_local_count(cmd_addr_T addr_type, linenr_T lnum, int offset)
 {
-  buf_T *nextbuf;
   int count = offset;
 
   buf_T *buf = firstbuf;
@@ -1088,7 +1088,7 @@ static int compute_buffer_local_count(cmd_addr_T addr_type, linenr_T lnum, int o
   }
   while (count != 0) {
     count += (count < 0) ? 1 : -1;
-    nextbuf = (offset < 0) ? buf->b_prev : buf->b_next;
+    buf_T *nextbuf = (offset < 0) ? buf->b_prev : buf->b_next;
     if (nextbuf == NULL) {
       break;
     }
@@ -1107,7 +1107,7 @@ static int compute_buffer_local_count(cmd_addr_T addr_type, linenr_T lnum, int o
   // we might have gone too far, last buffer is not loaded
   if (addr_type == ADDR_LOADED_BUFFERS) {
     while (buf->b_ml.ml_mfp == NULL) {
-      nextbuf = (offset >= 0) ? buf->b_prev : buf->b_next;
+      buf_T *nextbuf = (offset >= 0) ? buf->b_prev : buf->b_next;
       if (nextbuf == NULL) {
         break;
       }
@@ -1696,9 +1696,7 @@ static int execute_cmd0(int *retv, exarg_T *eap, const char **errormsg, bool pre
   // ":silent! try" was used, it should only apply to :try itself.
   if (eap->cmdidx == CMD_try && cmdmod.cmod_did_esilent > 0) {
     emsg_silent -= cmdmod.cmod_did_esilent;
-    if (emsg_silent < 0) {
-      emsg_silent = 0;
-    }
+    emsg_silent = MAX(emsg_silent, 0);
     cmdmod.cmod_did_esilent = 0;
   }
 
@@ -2444,9 +2442,7 @@ static char *ex_range_without_command(exarg_T *eap)
       ex_print(eap);
     }
   } else if (eap->addr_count != 0) {
-    if (eap->line2 > curbuf->b_ml.ml_line_count) {
-      eap->line2 = curbuf->b_ml.ml_line_count;
-    }
+    eap->line2 = MIN(eap->line2, curbuf->b_ml.ml_line_count);
 
     if (eap->line2 < 0) {
       errormsg = _(e_invrange);
@@ -2785,9 +2781,7 @@ void undo_cmdmod(cmdmod_T *cmod)
       msg_silent = cmod->cmod_save_msg_silent - 1;
     }
     emsg_silent -= cmod->cmod_did_esilent;
-    if (emsg_silent < 0) {
-      emsg_silent = 0;
-    }
+    emsg_silent = MAX(emsg_silent, 0);
     // Restore msg_scroll, it's set by file I/O commands, even when no
     // message is actually displayed.
     msg_scroll = cmod->cmod_save_msg_scroll;
@@ -3520,11 +3514,7 @@ static linenr_T get_address(exarg_T *eap, char **ptr, cmd_addr_T addr_type, bool
         // This makes sure we never match in the current
         // line, and can match anywhere in the
         // next/previous line.
-        if (c == '/' && curwin->w_cursor.lnum > 0) {
-          curwin->w_cursor.col = MAXCOL;
-        } else {
-          curwin->w_cursor.col = 0;
-        }
+        curwin->w_cursor.col = (c == '/' && curwin->w_cursor.lnum > 0) ? MAXCOL : 0;
         searchcmdlen = 0;
         flags = silent ? 0 : SEARCH_HIS | SEARCH_MSG;
         if (!do_search(NULL, c, c, cmd, strlen(cmd), 1, flags, NULL)) {
@@ -4654,7 +4644,7 @@ static void ex_colorscheme(exarg_T *eap)
     char *expr = xstrdup("g:colors_name");
 
     emsg_off++;
-    char *p = eval_to_string(expr, false);
+    char *p = eval_to_string(expr, false, false);
     emsg_off--;
     xfree(expr);
 
@@ -4793,11 +4783,9 @@ static void ex_cquit(exarg_T *eap)
 int before_quit_all(exarg_T *eap)
 {
   if (cmdwin_type != 0) {
-    if (eap->forceit) {
-      cmdwin_result = K_XF1;            // open_cmdwin() takes care of this
-    } else {
-      cmdwin_result = K_XF2;
-    }
+    cmdwin_result = eap->forceit
+                    ? K_XF1  // open_cmdwin() takes care of this
+                    : K_XF2;
     return FAIL;
   }
 
@@ -5593,45 +5581,43 @@ static void ex_swapname(exarg_T *eap)
 /// (1998-11-02 16:21:01  R. Edward Ralston <eralston@computer.org>)
 static void ex_syncbind(exarg_T *eap)
 {
-  linenr_T topline;
-  int y;
+  linenr_T vtopline;  // Target topline (including fill)
+
   linenr_T old_linenr = curwin->w_cursor.lnum;
 
   setpcmark();
 
-  // determine max topline
+  // determine max (virtual) topline
   if (curwin->w_p_scb) {
-    topline = curwin->w_topline;
+    vtopline = get_vtopline(curwin);
     FOR_ALL_WINDOWS_IN_TAB(wp, curtab) {
       if (wp->w_p_scb && wp->w_buffer) {
-        y = wp->w_buffer->b_ml.ml_line_count - get_scrolloff_value(curwin);
-        if (topline > y) {
-          topline = y;
-        }
+        linenr_T y = plines_m_win_fill(wp, 1, wp->w_buffer->b_ml.ml_line_count)
+                     - get_scrolloff_value(curwin);
+        vtopline = MIN(vtopline, y);
       }
     }
-    if (topline < 1) {
-      topline = 1;
-    }
+    vtopline = MAX(vtopline, 1);
   } else {
-    topline = 1;
+    vtopline = 1;
   }
 
   // Set all scrollbind windows to the same topline.
   FOR_ALL_WINDOWS_IN_TAB(wp, curtab) {
     if (wp->w_p_scb) {
-      y = topline - wp->w_topline;
+      int y = vtopline - get_vtopline(wp);
       if (y > 0) {
         scrollup(wp, y, true);
       } else {
         scrolldown(wp, -y, true);
       }
-      wp->w_scbind_pos = topline;
+      wp->w_scbind_pos = vtopline;
       redraw_later(wp, UPD_VALID);
       cursor_correct(wp);
       wp->w_redr_status = true;
     }
   }
+
   if (curwin->w_p_scb) {
     did_syncbind = true;
     checkpcmark();
@@ -7344,7 +7330,7 @@ static void ex_filetype(exarg_T *eap)
     break;
   }
   if (strcmp(arg, "on") == 0 || strcmp(arg, "detect") == 0) {
-    if (*arg == 'o' || !filetype_detect) {
+    if (*arg == 'o' || filetype_detect != kTrue) {
       source_runtime(FILETYPE_FILE, DIP_ALL);
       filetype_detect = kTrue;
       if (plugin) {
