@@ -626,10 +626,10 @@ vim.hl.range({bufnr}, {ns}, {higroup}, {start}, {finish}, {opts})
       • {bufnr}    (`integer`) Buffer number to apply highlighting to
       • {ns}       (`integer`) Namespace to add highlight to
       • {higroup}  (`string`) Highlight group to use for highlighting
-      • {start}    (`integer[]|string`) Start of region as a (line, column)
-                   tuple or string accepted by |getpos()|
-      • {finish}   (`integer[]|string`) End of region as a (line, column)
-                   tuple or string accepted by |getpos()|
+      • {start}    (`[integer,integer]|string`) Start of region as a (line,
+                   column) tuple or string accepted by |getpos()|
+      • {finish}   (`[integer,integer]|string`) End of region as a (line,
+                   column) tuple or string accepted by |getpos()|
       • {opts}     (`table?`) A table with the following fields:
                    • {regtype}? (`string`, default: `'v'` i.e. charwise) Type
                      of range. See |getregtype()|
@@ -1814,9 +1814,11 @@ vim.system({cmd}, {opts}, {on_exit})                            *vim.system()*
         • cmd (string[]) Command name and args
         • pid (integer) Process ID
         • wait (fun(timeout: integer|nil): SystemCompleted) Wait for the
-          process to complete. Upon timeout the process is sent the KILL
-          signal (9) and the exit code is set to 124. Cannot be called in
-          |api-fast|.
+          process to complete, including any open handles for background
+          processes (e.g., `bash -c 'sleep 10 &'`). To avoid waiting for
+          handles, set stdout=false and stderr=false. Upon timeout the process
+          is sent the KILL signal (9) and the exit code is set to 124. Cannot
+          be called in |api-fast|.
           • SystemCompleted is an object with the fields:
             • code: (integer)
             • signal: (integer)
@@ -4684,7 +4686,7 @@ vim.text.indent({size}, {text}, {opts})                    *vim.text.indent()*
     Parameters: ~
       • {size}  (`integer`) Number of spaces.
       • {text}  (`string`) Text to indent.
-      • {opts}  (`{ expandtab?: number }?`)
+      • {opts}  (`{ expandtab?: integer }?`)
 
     Return (multiple): ~
         (`string`) Indented text.
