@@ -1123,8 +1123,8 @@ function vim.fn.complete_info(what) end
 ---   or empty string if no match was found or when using the
 ---   default 'iskeyword' pattern.
 ---
---- When 'isexpand' is empty, uses the 'iskeyword' pattern
---- "\k\+$" to find the start of the current keyword.
+--- When 'isexpand' is empty, uses the 'iskeyword' pattern "\k\+$"
+--- to find the start of the current keyword.
 ---
 --- Examples: >vim
 ---   set isexpand=.,->,/,/*,abc
@@ -2785,6 +2785,7 @@ function vim.fn.getbufoneline(buf, lnum) end
 --- Examples: >vim
 ---   let bufmodified = getbufvar(1, "&mod")
 ---   echo "todo myvar = " .. getbufvar("todo", "myvar")
+--- <
 ---
 --- @param buf integer|string
 --- @param varname string
@@ -3175,7 +3176,7 @@ function vim.fn.getcompletion(pat, type, filtered) end
 --- |winrestview()| for restoring more state.
 ---
 --- @param winid? integer
---- @return any
+--- @return [integer, integer, integer, integer, integer]
 function vim.fn.getcurpos(winid) end
 
 --- Same as |getcurpos()| but the column number in the returned
@@ -3450,7 +3451,7 @@ function vim.fn.getmarklist(buf) end
 --- <
 ---
 --- @param win? integer
---- @return any
+--- @return vim.fn.getmatches.ret.item[]
 function vim.fn.getmatches(win) end
 
 --- Returns a |Dictionary| with the last known position of the
@@ -3551,7 +3552,7 @@ function vim.fn.getpid() end
 --- Also see |getcharpos()|, |getcurpos()| and |setpos()|.
 ---
 --- @param expr string
---- @return integer[]
+--- @return [integer, integer, integer, integer]
 function vim.fn.getpos(expr) end
 
 --- Returns a |List| with all the current quickfix errors.  Each
@@ -3776,9 +3777,9 @@ function vim.fn.getreginfo(regname) end
 ---   \ getpos('v'), getpos('.'), #{ type: mode() })<CR>
 --- <
 ---
---- @param pos1 table
---- @param pos2 table
---- @param opts? table
+--- @param pos1 [integer, integer, integer, integer]
+--- @param pos2 [integer, integer, integer, integer]
+--- @param opts? {type?:string, exclusive?:boolean}
 --- @return string[]
 function vim.fn.getregion(pos1, pos2, opts) end
 
@@ -3813,10 +3814,10 @@ function vim.fn.getregion(pos1, pos2, opts) end
 ---       value of 0 is used for both positions.
 ---       (default: |FALSE|)
 ---
---- @param pos1 table
---- @param pos2 table
---- @param opts? table
---- @return integer[][][]
+--- @param pos1 [integer, integer, integer, integer]
+--- @param pos2 [integer, integer, integer, integer]
+--- @param opts? {type?:string, exclusive?:boolean, eol?:boolean}
+--- @return [ [integer, integer, integer, integer], [integer, integer, integer, integer] ][]
 function vim.fn.getregionpos(pos1, pos2, opts) end
 
 --- The result is a String, which is type of register {regname}.
@@ -4079,6 +4080,7 @@ function vim.fn.getwinposy() end
 --- Examples: >vim
 ---   let list_is_on = getwinvar(2, '&list')
 ---   echo "myvar = " .. getwinvar(1, 'myvar')
+--- <
 ---
 --- @param winnr integer
 --- @param varname string
@@ -4735,6 +4737,7 @@ function vim.fn.inputdialog(...) end
 --- Example: >vim
 ---   let color = inputlist(['Select color:', '1. red',
 ---     \ '2. green', '3. blue'])
+--- <
 ---
 --- @param textlist string[]
 --- @return any
@@ -5190,6 +5193,7 @@ function vim.fn.len(expr) end
 --- object code must be compiled as position-independent ('PIC').
 --- Examples: >vim
 ---   echo libcall("libc.so", "getenv", "HOME")
+--- <
 ---
 --- @param libname string
 --- @param funcname string
@@ -7133,7 +7137,7 @@ function vim.fn.readdir(directory, expr) end
 --- @param fname string
 --- @param type? string
 --- @param max? integer
---- @return any
+--- @return string[]
 function vim.fn.readfile(fname, type, max) end
 
 --- {func} is called for every item in {object}, which can be a
@@ -8256,7 +8260,7 @@ function vim.fn.setloclist(nr, list, action, what) end
 --- If {win} is specified, use the window with this number or
 --- window ID instead of the current window.
 ---
---- @param list any
+--- @param list vim.fn.getmatches.ret.item[]
 --- @param win? integer
 --- @return any
 function vim.fn.setmatches(list, win) end
@@ -8489,6 +8493,7 @@ function vim.fn.setqflist(list, action, what) end
 --- You can also change the type of a register by appending
 --- nothing: >vim
 ---   call setreg('a', '', 'al')
+--- <
 ---
 --- @param regname string
 --- @param value any
@@ -8574,6 +8579,7 @@ function vim.fn.settagstack(nr, dict, action) end
 --- Examples: >vim
 ---   call setwinvar(1, "&list", 0)
 ---   call setwinvar(2, "myvar", "foobar")
+--- <
 ---
 --- @param nr integer
 --- @param varname string
@@ -9018,6 +9024,7 @@ function vim.fn.sign_undefine(list) end
 ---
 ---   " Remove all the placed signs from all the buffers
 ---   call sign_unplace('*')
+--- <
 ---
 --- @param group string
 --- @param dict? vim.fn.sign_unplace.dict
@@ -9610,6 +9617,7 @@ function vim.fn.strdisplaywidth(string, col) end
 ---   echo strftime("%H:%M")       " 11:55
 ---   echo strftime("%c", getftime("file.c"))
 ---            " Show mod time of file.c.
+--- <
 ---
 --- @param format string
 --- @param time? number
@@ -9918,6 +9926,7 @@ function vim.fn.substitute(string, pat, sub, flags) end
 ---   let &directory = '.'
 ---   let swapfiles = swapfilelist()
 ---   let &directory = save_dir
+--- <
 ---
 --- @return string[]
 function vim.fn.swapfilelist() end
@@ -10693,7 +10702,7 @@ function vim.fn.values(dict) end
 --- @param expr string|any[]
 --- @param list? boolean
 --- @param winid? integer
---- @return any
+--- @return integer|[integer, integer]
 function vim.fn.virtcol(expr, list, winid) end
 
 --- The result is a Number, which is the byte index of the

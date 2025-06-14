@@ -1278,8 +1278,8 @@ complete_match([{lnum}, {col}])                               *complete_match()*
 		  or empty string if no match was found or when using the
 		  default 'iskeyword' pattern.
 
-		When 'isexpand' is empty, uses the 'iskeyword' pattern
-		"\k\+$" to find the start of the current keyword.
+		When 'isexpand' is empty, uses the 'iskeyword' pattern "\k\+$"
+		to find the start of the current keyword.
 
 		Examples: >vim
 		  set isexpand=.,->,/,/*,abc
@@ -3115,6 +3115,7 @@ getbufvar({buf}, {varname} [, {def}])                              *getbufvar()*
 		Examples: >vim
 			let bufmodified = getbufvar(1, "&mod")
 			echo "todo myvar = " .. getbufvar("todo", "myvar")
+<
 
                 Parameters: ~
                   • {buf} (`integer|string`)
@@ -3537,7 +3538,7 @@ getcurpos([{winid}])                                               *getcurpos()*
                   • {winid} (`integer?`)
 
                 Return: ~
-                  (`any`)
+                  (`[integer, integer, integer, integer, integer]`)
 
 getcursorcharpos([{winid}])                                 *getcursorcharpos()*
 		Same as |getcurpos()| but the column number in the returned
@@ -3846,7 +3847,7 @@ getmatches([{win}])                                               *getmatches()*
                   • {win} (`integer?`)
 
                 Return: ~
-                  (`any`)
+                  (`vim.fn.getmatches.ret.item[]`)
 
 getmousepos()                                                    *getmousepos()*
 		Returns a |Dictionary| with the last known position of the
@@ -3952,7 +3953,7 @@ getpos({expr})                                                        *getpos()*
                   • {expr} (`string`)
 
                 Return: ~
-                  (`integer[]`)
+                  (`[integer, integer, integer, integer]`)
 
 getqflist([{what}])                                                *getqflist()*
 		Returns a |List| with all the current quickfix errors.  Each
@@ -4181,9 +4182,9 @@ getregion({pos1}, {pos2} [, {opts}])                               *getregion()*
 <
 
                 Parameters: ~
-                  • {pos1} (`table`)
-                  • {pos2} (`table`)
-                  • {opts} (`table?`)
+                  • {pos1} (`[integer, integer, integer, integer]`)
+                  • {pos2} (`[integer, integer, integer, integer]`)
+                  • {opts} (`{type?:string, exclusive?:boolean}?`)
 
                 Return: ~
                   (`string[]`)
@@ -4221,12 +4222,13 @@ getregionpos({pos1}, {pos2} [, {opts}])                         *getregionpos()*
 					(default: |FALSE|)
 
                 Parameters: ~
-                  • {pos1} (`table`)
-                  • {pos2} (`table`)
-                  • {opts} (`table?`)
+                  • {pos1} (`[integer, integer, integer, integer]`)
+                  • {pos2} (`[integer, integer, integer, integer]`)
+                  • {opts}
+                    (`{type?:string, exclusive?:boolean, eol?:boolean}?`)
 
                 Return: ~
-                  (`integer[][][]`)
+                  (`[ [integer, integer, integer, integer], [integer, integer, integer, integer] ][]`)
 
 getregtype([{regname}])                                           *getregtype()*
 		The result is a String, which is type of register {regname}.
@@ -4519,6 +4521,7 @@ getwinvar({winnr}, {varname} [, {def}])                            *getwinvar()*
 		Examples: >vim
 			let list_is_on = getwinvar(2, '&list')
 			echo "myvar = " .. getwinvar(1, 'myvar')
+<
 
                 Parameters: ~
                   • {winnr} (`integer`)
@@ -5218,6 +5221,7 @@ inputlist({textlist})                                              *inputlist()*
 		Example: >vim
 			let color = inputlist(['Select color:', '1. red',
 				\ '2. green', '3. blue'])
+<
 
                 Parameters: ~
                   • {textlist} (`string[]`)
@@ -5719,6 +5723,7 @@ libcall({libname}, {funcname}, {argument})                 *libcall()* *E364* *E
 		object code must be compiled as position-independent ('PIC').
 		Examples: >vim
 			echo libcall("libc.so", "getenv", "HOME")
+<
 
                 Parameters: ~
                   • {libname} (`string`)
@@ -7852,7 +7857,7 @@ readfile({fname} [, {type} [, {max}]])                              *readfile()*
                   • {max} (`integer?`)
 
                 Return: ~
-                  (`any`)
+                  (`string[]`)
 
 reduce({object}, {func} [, {initial}])                           *reduce()* *E998*
 		{func} is called for every item in {object}, which can be a
@@ -9063,7 +9068,7 @@ setmatches({list} [, {win}])                                      *setmatches()*
 		window ID instead of the current window.
 
                 Parameters: ~
-                  • {list} (`any`)
+                  • {list} (`vim.fn.getmatches.ret.item[]`)
                   • {win} (`integer?`)
 
                 Return: ~
@@ -9304,6 +9309,7 @@ setreg({regname}, {value} [, {options}])                              *setreg()*
 		You can also change the type of a register by appending
 		nothing: >vim
 			call setreg('a', '', 'al')
+<
 
                 Parameters: ~
                   • {regname} (`string`)
@@ -9401,6 +9407,7 @@ setwinvar({nr}, {varname}, {val})                                  *setwinvar()*
 		Examples: >vim
 			call setwinvar(1, "&list", 0)
 			call setwinvar(2, "myvar", "foobar")
+<
 
                 Parameters: ~
                   • {nr} (`integer`)
@@ -9871,6 +9878,7 @@ sign_unplace({group} [, {dict}])                                *sign_unplace()*
 
 			" Remove all the placed signs from all the buffers
 			call sign_unplace('*')
+<
 
                 Parameters: ~
                   • {group} (`string`)
@@ -10527,6 +10535,7 @@ strftime({format} [, {time}])                                       *strftime()*
 		  echo strftime("%H:%M")		   " 11:55
 		  echo strftime("%c", getftime("file.c"))
 						   " Show mod time of file.c.
+<
 
                 Parameters: ~
                   • {format} (`string`)
@@ -10869,6 +10878,7 @@ swapfilelist()                                                  *swapfilelist()*
 			let &directory = '.'
 			let swapfiles = swapfilelist()
 			let &directory = save_dir
+<
 
                 Return: ~
                   (`string[]`)
@@ -11742,7 +11752,7 @@ virtcol({expr} [, {list} [, {winid}]])                               *virtcol()*
                   • {winid} (`integer?`)
 
                 Return: ~
-                  (`any`)
+                  (`integer|[integer, integer]`)
 
 virtcol2col({winid}, {lnum}, {col})                              *virtcol2col()*
 		The result is a Number, which is the byte index of the
