@@ -43,13 +43,12 @@ local validate = vim.validate
 ---   array.
 --- @field capabilities? lsp.ClientCapabilities
 ---
---- command string[] that launches the language
---- server (treated as in |jobstart()|, must be absolute or on `$PATH`, shell constructs like
---- "~" are not expanded), or function that creates an RPC client. Function receives
---- a `dispatchers` table and returns a table with member functions `request`, `notify`,
---- `is_closing` and `terminate`.
+--- Command `string[]` that launches the language server (treated as in |jobstart()|, must be
+--- absolute or on `$PATH`, shell constructs like "~" are not expanded), or function that creates an
+--- RPC client. Function receives a `dispatchers` table and returns a table with member functions
+--- `request`, `notify`, `is_closing` and `terminate`.
 --- See |vim.lsp.rpc.request()|, |vim.lsp.rpc.notify()|.
----  For TCP there is a builtin RPC client factory: |vim.lsp.rpc.connect()|
+--- For TCP there is a builtin RPC client factory: |vim.lsp.rpc.connect()|
 --- @field cmd string[]|fun(dispatchers: vim.lsp.rpc.Dispatchers): vim.lsp.rpc.PublicClient
 ---
 --- Directory to launch the `cmd` process. Not related to `root_dir`.
@@ -176,7 +175,7 @@ local validate = vim.validate
 --- @field name string
 ---
 --- See [vim.lsp.ClientConfig].
---- @field offset_encoding string
+--- @field offset_encoding 'utf-8'|'utf-16'|'utf-32'
 ---
 --- A ring buffer (|vim.ringbuf()|) containing progress messages
 --- sent by the server.
@@ -440,16 +439,16 @@ function Client.create(config)
   --- @type vim.lsp.rpc.Dispatchers
   local dispatchers = {
     notification = function(...)
-      return self:_notification(...)
+      self:_notification(...)
     end,
     server_request = function(...)
       return self:_server_request(...)
     end,
     on_error = function(...)
-      return self:_on_error(...)
+      self:_on_error(...)
     end,
     on_exit = function(...)
-      return self:_on_exit(...)
+      self:_on_exit(...)
     end,
   }
 
@@ -554,6 +553,8 @@ function Client:initialize()
       assert(result.capabilities, "initialize result doesn't contain capabilities")
     self.server_capabilities = assert(lsp.protocol.resolve_capabilities(self.server_capabilities))
 
+    self:_process_static_registrations()
+
     if self.server_capabilities.positionEncoding then
       self.offset_encoding = self.server_capabilities.positionEncoding
     end
@@ -585,6 +586,48 @@ function Client:initialize()
   end)
 end
 
+-- Server capabilities for methods that support static registration.
+local static_registration_capabilities = {
+  [ms.textDocument_prepareCallHierarchy] = 'callHierarchyProvider',
+  [ms.textDocument_documentColor] = 'colorProvider',
+  [ms.textDocument_declaration] = 'declarationProvider',
+  [ms.textDocument_diagnostic] = 'diagnosticProvider',
+  [ms.textDocument_foldingRange] = 'foldingRangeProvider',
+  [ms.textDocument_implementation] = 'implementationProvider',
+  [ms.textDocument_inlayHint] = 'inlayHintProvider',
+  [ms.textDocument_inlineValue] = 'inlineValueProvider',
+  [ms.textDocument_linkedEditingRange] = 'linkedEditingRangeProvider',
+  [ms.textDocument_moniker] = 'monikerProvider',
+  [ms.textDocument_selectionRange] = 'selectionRangeProvider',
+  [ms.textDocument_semanticTokens_full] = 'semanticTokensProvider',
+  [ms.textDocument_typeDefinition] = 'typeDefinitionProvider',
+  [ms.textDocument_prepareTypeHierarchy] = 'typeHierarchyProvider',
+}
+
+--- @private
+function Client:_process_static_registrations()
+  local static_registrations = {} ---@type lsp.Registration[]
+
+  for method, capability in pairs(static_registration_capabilities) do
+    if
+      vim.tbl_get(self.server_capabilities, capability, 'id')
+      and self:_supports_registration(method)
+    then
+      static_registrations[#static_registrations + 1] = {
+        id = self.server_capabilities[capability].id,
+        method = method,
+        registerOptions = {
+          documentSelector = self.server_capabilities[capability].documentSelector, ---@type lsp.DocumentSelector?
+        },
+      }
+    end
+  end
+
+  if next(static_registrations) then
+    self:_register_dynamic(static_registrations)
+  end
+end
+
 --- @private
 --- Returns the handler associated with an LSP method.
 --- Returns the default handler if the user hasn't set a custom one.
@@ -597,7 +640,7 @@ end
 
 --- @private
 --- @param id integer
---- @param req_type 'pending'|'complete'|'cancel'|
+--- @param req_type 'pending'|'complete'|'cancel'
 --- @param bufnr? integer (only required for req_type='pending')
 --- @param method? string (only required for req_type='pending')
 function Client:_process_request(id, req_type, bufnr, method)

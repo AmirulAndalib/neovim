@@ -16,29 +16,28 @@ local function get_qf_id_for_title(title)
   return nil
 end
 
---- [diagnostic-structure]()
----
 --- Diagnostics use the same indexing as the rest of the Nvim API (i.e. 0-based
 --- rows and columns). |api-indexing|
---- @class vim.Diagnostic
----
---- Buffer number
---- @field bufnr integer
+--- @class vim.Diagnostic.Set
 ---
 --- The starting line of the diagnostic (0-indexed)
 --- @field lnum integer
 ---
---- The final line of the diagnostic (0-indexed)
---- @field end_lnum integer
----
 --- The starting column of the diagnostic (0-indexed)
---- @field col integer
+--- (default: `0`)
+--- @field col? integer
+---
+--- The final line of the diagnostic (0-indexed)
+--- (default: `lnum`)
+--- @field end_lnum? integer
 ---
 --- The final column of the diagnostic (0-indexed)
---- @field end_col integer
+--- (default: `col`)
+--- @field end_col? integer
 ---
 --- The severity of the diagnostic |vim.diagnostic.severity|
---- @field severity vim.diagnostic.Severity
+--- (default: `vim.diagnostic.severity.ERROR`)
+--- @field severity? vim.diagnostic.Severity
 ---
 --- The diagnostic text
 --- @field message string
@@ -53,32 +52,18 @@ end
 ---
 --- Arbitrary data plugins or users can add
 --- @field user_data? any arbitrary data plugins can add
----
---- @field namespace? integer
 
---- @class vim.Diagnostic.Set : vim.Diagnostic
+--- [diagnostic-structure]()
 ---
---- Do not set. Will be overridden by `vim.diagnostic.set()`.
---- @field bufnr nil
----
---- Do not set. Will be overridden by `vim.diagnostic.set()`.
---- @field namespace nil
----
---- The starting column of the diagnostic in bytes (0-indexed)
---- (default: `0`)
---- @field col? integer
----
---- The final line of the diagnostic (0-indexed)
---- (default: same as `lnum`)
---- @field end_lnum? integer
----
---- The final column of the diagnostic (0-indexed)
---- (default: same as `col`)
---- @field end_col? integer
----
---- The severity of the diagnostic |vim.diagnostic.severity|
---- (default: `vim.diagnostic.severity.ERROR`)
---- @field severity? vim.diagnostic.Severity
+--- Diagnostics use the same indexing as the rest of the Nvim API (i.e. 0-based
+--- rows and columns). |api-indexing|
+--- @class vim.Diagnostic : vim.Diagnostic.Set
+--- @field bufnr integer Buffer number
+--- @field end_lnum integer The final line of the diagnostic (0-indexed)
+--- @field col integer The starting column of the diagnostic (0-indexed)
+--- @field end_col integer The final column of the diagnostic (0-indexed)
+--- @field severity vim.diagnostic.Severity The severity of the diagnostic |vim.diagnostic.severity|
+--- @field namespace? integer
 
 --- Many of the configuration options below accept one of the following:
 --- - `false`: Disable this feature
@@ -418,7 +403,7 @@ local bufnr_and_namespace_cacher_mt = {
 }
 
 -- bufnr -> ns -> Diagnostic[]
-local diagnostic_cache = {} --- @type table<integer,table<integer,vim.Diagnostic[]>>
+local diagnostic_cache = {} --- @type table<integer,table<integer,vim.Diagnostic[]?>>
 do
   local group = api.nvim_create_augroup('nvim.diagnostic.buf_wipeout', {})
   setmetatable(diagnostic_cache, {
@@ -708,16 +693,6 @@ local function norm_diag(bufnr, namespace, d)
   d1.end_col = d.end_col or d.col or 0
   d1.namespace = namespace
   d1.bufnr = bufnr
-end
-
---- @param namespace integer
---- @param bufnr integer
---- @param diagnostics vim.Diagnostic.Set[]
-local function set_diagnostic_cache(namespace, bufnr, diagnostics)
-  for _, diagnostic in ipairs(diagnostics) do
-    norm_diag(bufnr, namespace, diagnostic)
-  end
-  diagnostic_cache[bufnr][namespace] = diagnostics
 end
 
 --- @param bufnr integer
@@ -1260,10 +1235,16 @@ function M.set(namespace, bufnr, diagnostics, opts)
 
   bufnr = vim._resolve_bufnr(bufnr)
 
+  for _, diagnostic in ipairs(diagnostics) do
+    norm_diag(bufnr, namespace, diagnostic)
+  end
+
+  --- @cast diagnostics vim.Diagnostic[]
+
   if vim.tbl_isempty(diagnostics) then
     diagnostic_cache[bufnr][namespace] = nil
   else
-    set_diagnostic_cache(namespace, bufnr, diagnostics)
+    diagnostic_cache[bufnr][namespace] = diagnostics
   end
 
   M.show(namespace, bufnr, nil, opts)
@@ -1272,7 +1253,7 @@ function M.set(namespace, bufnr, diagnostics, opts)
     modeline = false,
     buffer = bufnr,
     -- TODO(lewis6991): should this be deepcopy()'d like they are in vim.diagnostic.get()
-    data = { diagnostics = diagnostic_cache[bufnr][namespace] },
+    data = { diagnostics = diagnostics },
   })
 end
 

@@ -498,18 +498,28 @@ static void rpc_close_event(void **argv)
   if (is_ui_client || channel->streamtype == kChannelStreamStdio) {
     if (!is_ui_client) {
       // Avoid hanging when there are no other UIs and a prompt is triggered on exit.
-      remote_ui_disconnect(channel->id);
+      remote_ui_disconnect(channel->id, NULL, false);
+    } else {
+      ui_client_may_restart_server();
+      if (ui_client_channel_id != channel->id) {
+        // A new server has been started. Don't exit.
+        return;
+      }
     }
-
     if (!channel->detach) {
-      exit_on_closed_chan(channel->exit_status == -1 ? 0 : channel->exit_status);
+      if (channel->streamtype == kChannelStreamProc && ui_client_error_exit < 0) {
+        // Wait for the embedded server to exit instead of exiting immediately,
+        // as it's necessary to get the server's exit code in on_proc_exit().
+      } else {
+        exit_on_closed_chan(0);
+      }
     }
   }
 }
 
 void rpc_free(Channel *channel)
 {
-  remote_ui_disconnect(channel->id);
+  remote_ui_disconnect(channel->id, NULL, false);
   unpacker_teardown(channel->rpc.unpacker);
   xfree(channel->rpc.unpacker);
 
@@ -598,6 +608,12 @@ void serialize_response(Channel *channel, MsgpackRpcRequestHandler handler, Mess
 
 static void packer_buffer_init_channels(Channel **chans, size_t nchans, PackerBuffer *packer)
 {
+  for (size_t i = 0; i < nchans; i++) {
+    Channel *chan = chans[i];
+    if (chan->rpc.ui && chan->rpc.ui->incomplete_event) {
+      remote_ui_flush_pending_data(chan->rpc.ui);
+    }
+  }
   packer->startptr = alloc_block();
   packer->ptr = packer->startptr;
   packer->endptr = packer->startptr + ARENA_BLOCK_SIZE;

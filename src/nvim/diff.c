@@ -2925,7 +2925,7 @@ static void diff_find_change_inline_diff(diff_T *dp)
   const int save_diff_algorithm = diff_algorithm;
 
   diffio_T dio = { 0 };
-  ga_init(&dio.dio_diff.dout_ga, sizeof(char *), 1000);
+  ga_init(&dio.dio_diff.dout_ga, sizeof(diffhunk_T), 1000);
 
   // inline diff only supports internal algo
   dio.dio_internal = true;
@@ -3551,6 +3551,15 @@ theend:
   // invalid.
   check_cursor(curwin);
   changed_line_abv_curs();
+
+  // If all diffs are gone, update folds in all diff windows.
+  if (curtab->tp_first_diff == NULL) {
+    FOR_ALL_WINDOWS_IN_TAB(wp, curtab) {
+      if (wp->w_p_diff && wp->w_p_fdm[0] == 'd' && wp->w_p_fen) {
+        foldUpdateAll(wp);
+      }
+    }
+  }
 
   if (diff_need_update) {
     // redraw already done by ex_diffupdate()

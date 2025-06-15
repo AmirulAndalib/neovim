@@ -4828,16 +4828,23 @@ int before_quit_all(exarg_T *eap)
 }
 
 /// ":qall": try to quit all windows
-static void ex_quit_all(exarg_T *eap)
+/// ":restart": restart the Nvim server
+static void ex_quitall_or_restart(exarg_T *eap)
 {
   if (before_quit_all(eap) == FAIL) {
     return;
   }
   exiting = true;
-  if (eap->forceit || !check_changed_any(false, false)) {
+  Error err = ERROR_INIT;
+  if ((eap->forceit || !check_changed_any(false, false))
+      && (eap->cmdidx != CMD_restart || remote_ui_restart(current_ui, &err))) {
     getout(0);
   }
   not_exiting();
+  if (ERROR_SET(&err)) {
+    emsg(err.msg);  // UI disappeared already?
+    api_clear_error(&err);
+  }
 }
 
 /// ":close": close current window, unless it is the last one
@@ -5553,8 +5560,8 @@ static void ex_detach(exarg_T *eap)
   if (eap && eap->forceit) {
     emsg("bang (!) not supported yet");
   } else {
-    // 1. (TODO) Send "detach" UI-event (notification only).
-    // 2. Perform server-side `nvim_ui_detach`.
+    // 1. Send "error_exit" UI-event (notification only).
+    // 2. Perform server-side UI detach.
     // 3. Close server-side channel without self-exit.
 
     if (!current_ui) {
@@ -5571,7 +5578,7 @@ static void ex_detach(exarg_T *eap)
 
     // Server-side UI detach. Doesn't close the channel.
     Error err2 = ERROR_INIT;
-    nvim_ui_detach(chan->id, &err2);
+    remote_ui_disconnect(chan->id, &err2, true);
     if (ERROR_SET(&err2)) {
       emsg(err2.msg);  // UI disappeared already?
       api_clear_error(&err2);
@@ -5590,31 +5597,6 @@ static void ex_detach(exarg_T *eap)
 
     ILOG("detach current_ui=%" PRId64, chan->id);
   }
-}
-
-/// ":restart" command
-/// Restarts the server by delegating the work to the UI.
-static void ex_restart(exarg_T *eap)
-{
-  bool forceit = eap && eap->forceit;
-
-  win_T *wp = curwin;
-
-  // If any buffer is changed and not saved, we cannot restart.
-  // But if called using bang (!), we will force restart.
-  if ((!buf_hide(wp->w_buffer)
-       && check_changed(wp->w_buffer, (p_awa ? CCGD_AW : 0)
-                        | (forceit ? CCGD_FORCEIT : 0)
-                        | CCGD_EXCMD))
-      || check_more(true, forceit) == FAIL
-      || check_changed_any(forceit, true)) {
-    if (!forceit) {
-      return;
-    }
-  }
-
-  // Send an ui restart event.
-  ui_call_restart();
 }
 
 /// ":mode":
@@ -8204,4 +8186,19 @@ void verify_command(char *cmd)
 uint32_t get_cmd_argt(cmdidx_T cmdidx)
 {
   return cmdnames[(int)cmdidx].cmd_argt;
+}
+
+/// Check if a command is a :map/:abbrev command.
+bool is_map_cmd(cmdidx_T cmdidx)
+{
+  if (IS_USER_CMDIDX(cmdidx)) {
+    return false;
+  }
+
+  ex_func_T func = cmdnames[cmdidx].cmd_func;
+  return func == ex_map           // :map, :nmap, :noremap, etc.
+         || func == ex_unmap         // :unmap, :nunmap, etc.
+         || func == ex_mapclear      // :mapclear, :nmapclear, etc.
+         || func == ex_abbreviate    // :abbreviate, :iabbrev, etc.
+         || func == ex_abclear;      // :abclear, :iabclear, etc.
 }
