@@ -607,7 +607,7 @@ static int insert_execute(VimState *state, int key)
                && (s->c == CAR || s->c == K_KENTER || s->c == NL)))
           && stop_arrow() == OK) {
         ins_compl_delete(false);
-        ins_compl_insert(false, false);
+        ins_compl_insert(false);
       } else if (ascii_iswhite_nl_or_nul(s->c) && ins_compl_preinsert_effect()) {
         // Delete preinserted text when typing special chars
         ins_compl_delete(false);
@@ -1077,7 +1077,7 @@ check_pum:
       cmdwin_result = CAR;
       return 0;
     }
-    if (bt_prompt(curbuf)) {
+    if ((mod_mask & MOD_MASK_SHIFT) == 0 && bt_prompt(curbuf)) {
       invoke_prompt_callback();
       if (!bt_prompt(curbuf)) {
         // buffer changed to a non-prompt buffer, get out of
@@ -1532,9 +1532,14 @@ static void init_prompt(int cmdchar_todo)
 {
   char *prompt = prompt_text();
 
-  curwin->w_cursor.lnum = curbuf->b_ml.ml_line_count;
+  if (curwin->w_cursor.lnum < curbuf->b_prompt_start.mark.lnum) {
+    curwin->w_cursor.lnum = curbuf->b_ml.ml_line_count;
+    coladvance(curwin, MAXCOL);
+  }
   char *text = get_cursor_line_ptr();
-  if (strncmp(text, prompt, strlen(prompt)) != 0) {
+  if ((curbuf->b_prompt_start.mark.lnum == curwin->w_cursor.lnum
+       && strncmp(text, prompt, strlen(prompt)) != 0)
+      || curbuf->b_prompt_start.mark.lnum > curwin->w_cursor.lnum) {
     // prompt is missing, insert it or append a line with it
     if (*text == NUL) {
       ml_replace(curbuf->b_ml.ml_line_count, prompt, true);
@@ -1547,8 +1552,9 @@ static void init_prompt(int cmdchar_todo)
   }
 
   // Insert always starts after the prompt, allow editing text after it.
-  if (Insstart_orig.lnum != curwin->w_cursor.lnum || Insstart_orig.col != (colnr_T)strlen(prompt)) {
-    Insstart.lnum = curwin->w_cursor.lnum;
+  if (Insstart_orig.lnum != curbuf->b_prompt_start.mark.lnum
+      || Insstart_orig.col != (colnr_T)strlen(prompt)) {
+    Insstart.lnum = curbuf->b_prompt_start.mark.lnum;
     Insstart.col = (colnr_T)strlen(prompt);
     Insstart_orig = Insstart;
     Insstart_textlen = Insstart.col;
@@ -1559,7 +1565,9 @@ static void init_prompt(int cmdchar_todo)
   if (cmdchar_todo == 'A') {
     coladvance(curwin, MAXCOL);
   }
-  curwin->w_cursor.col = MAX(curwin->w_cursor.col, (colnr_T)strlen(prompt));
+  if (curbuf->b_prompt_start.mark.lnum == curwin->w_cursor.lnum) {
+    curwin->w_cursor.col = MAX(curwin->w_cursor.col, (colnr_T)strlen(prompt));
+  }
   // Make sure the cursor is in a valid position.
   check_cursor(curwin);
 }
@@ -1568,8 +1576,9 @@ static void init_prompt(int cmdchar_todo)
 bool prompt_curpos_editable(void)
   FUNC_ATTR_PURE
 {
-  return curwin->w_cursor.lnum == curbuf->b_ml.ml_line_count
-         && curwin->w_cursor.col >= (int)strlen(prompt_text());
+  return curwin->w_cursor.lnum > curbuf->b_prompt_start.mark.lnum
+         || (curwin->w_cursor.lnum == curbuf->b_prompt_start.mark.lnum
+             && curwin->w_cursor.col >= (int)strlen(prompt_text()));
 }
 
 // Undo the previous edit_putchar().
@@ -2133,7 +2142,8 @@ void insertchar(int c, int flags, int second_indent)
       i -= middle_len;
 
       // Check some expected things before we go on
-      if (i >= 0 && (uint8_t)lead_end[end_len - 1] == end_comment_pending) {
+      if (i >= 0 && end_len > 0
+          && (uint8_t)lead_end[end_len - 1] == end_comment_pending) {
         // Backspace over all the stuff we want to replace
         backspace_until_column(i);
 
@@ -3269,12 +3279,13 @@ static void ins_reg(void)
     ins_need_undo = true;
   }
   u_sync_once = 0;
-  clear_showcmd();
 
-  // If the inserted register is empty, we need to remove the '"'
+  // If the inserted register is empty, we need to remove the '"'. Do this before
+  // clearing showcmd, which emits an event that can also update the screen.
   if (need_redraw || stuff_empty()) {
     edit_unputchar();
   }
+  clear_showcmd();
 
   // Disallow starting Visual mode here, would get a weird mode.
   if (!vis_active && VIsual_active) {

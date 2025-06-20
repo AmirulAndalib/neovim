@@ -2157,6 +2157,11 @@ describe('API', function()
       feed('<F2>')
       eq({ mode = 'n', blocking = false }, api.nvim_get_mode())
     end)
+
+    it('returns "c" during number prompt', function()
+      feed('ifoo<Esc>z=')
+      eq({ mode = 'c', blocking = false }, api.nvim_get_mode())
+    end)
   end)
 
   describe('RPC (K_EVENT)', function()
@@ -4636,6 +4641,45 @@ describe('API', function()
         },
       }, api.nvim_parse_cmd('argadd a.txt | argadd b.txt', {}))
     end)
+    it('parses :map commands with space in RHS', function()
+      eq({
+        addr = 'none',
+        args = { 'a', 'b  c' },
+        bang = false,
+        cmd = 'map',
+        magic = {
+          bar = true,
+          file = false,
+        },
+        mods = {
+          browse = false,
+          confirm = false,
+          emsg_silent = false,
+          filter = {
+            force = false,
+            pattern = '',
+          },
+          hide = false,
+          horizontal = false,
+          keepalt = false,
+          keepjumps = false,
+          keepmarks = false,
+          keeppatterns = false,
+          lockmarks = false,
+          noautocmd = false,
+          noswapfile = false,
+          sandbox = false,
+          silent = false,
+          split = '',
+          tab = -1,
+          unsilent = false,
+          verbose = -1,
+          vertical = false,
+        },
+        nargs = '*',
+        nextcmd = '',
+      }, api.nvim_parse_cmd('map a b  c', {}))
+    end)
     it('works for nargs=1', function()
       command('command -nargs=1 MyCommand echo <q-args>')
       eq({
@@ -4782,6 +4826,14 @@ describe('API', function()
         exec_lua([=[return {pcall(vim.api.nvim_parse_cmd, "'<,'>n", {})}]=])
       )
       eq('', eval('v:errmsg'))
+    end)
+    it('does not include count field when no count provided for builtin commands', function()
+      local result = api.nvim_parse_cmd('copen', {})
+      eq(nil, result.count)
+      api.nvim_cmd(result, {})
+      eq(10, api.nvim_win_get_height(0))
+      result = api.nvim_parse_cmd('copen 5', {})
+      eq(5, result.count)
     end)
   end)
 
@@ -5396,6 +5448,57 @@ describe('API', function()
       -- Clean up
       os.remove('Xfile')
     end)
+    it('interprets numeric args as count for count-only commands', function()
+      api.nvim_cmd({ cmd = 'copen', args = { 8 } }, {})
+      local height1 = api.nvim_win_get_height(0)
+      command('cclose')
+      api.nvim_cmd({ cmd = 'copen', count = 8 }, {})
+      local height2 = api.nvim_win_get_height(0)
+      command('cclose')
+      eq(height1, height2)
+
+      exec_lua 'vim.cmd.copen(5)'
+      height2 = api.nvim_win_get_height(0)
+      command('cclose')
+      eq(5, height2)
+
+      -- should reject both count and numeric arg
+      eq(
+        "Cannot specify both 'count' and numeric argument",
+        pcall_err(api.nvim_cmd, { cmd = 'copen', args = { 5 }, count = 10 }, {})
+      )
+    end)
+    it('handles string numeric arguments correctly', function()
+      -- Valid string numbers should work
+      api.nvim_cmd({ cmd = 'copen', args = { '6' } }, {})
+      eq(6, api.nvim_win_get_height(0))
+      command('cclose')
+      -- Invalid strings should be rejected
+      eq(
+        'Wrong number of arguments',
+        pcall_err(api.nvim_cmd, { cmd = 'copen', args = { 'abc' } }, {})
+      )
+      -- Partial numbers should be rejected
+      eq(
+        'Wrong number of arguments',
+        pcall_err(api.nvim_cmd, { cmd = 'copen', args = { '8abc' } }, {})
+      )
+      -- Empty string should be rejected
+      eq(
+        'Invalid command arg: expected non-whitespace',
+        pcall_err(api.nvim_cmd, { cmd = 'copen', args = { '' } }, {})
+      )
+      -- Negative string numbers should be rejected
+      eq(
+        'Wrong number of arguments',
+        pcall_err(api.nvim_cmd, { cmd = 'copen', args = { '-5' } }, {})
+      )
+      -- Leading/trailing spaces should be rejected
+      eq(
+        'Wrong number of arguments',
+        pcall_err(api.nvim_cmd, { cmd = 'copen', args = { ' 5 ' } }, {})
+      )
+    end)
   end)
 
   it('nvim__redraw', function()
@@ -5673,5 +5776,33 @@ describe('API', function()
     eq(expected_lines, actual_lines)
 
     n.assert_alive()
+  end)
+
+  it('nvim__redraw updates topline', function()
+    local screen = Screen.new(40, 8)
+    fn.setline(1, fn.range(100))
+    feed(':call getchar()<CR>')
+    fn.cursor(50, 1)
+    screen:expect([[
+      0                                       |
+      1                                       |
+      2                                       |
+      3                                       |
+      4                                       |
+      5                                       |
+      6                                       |
+      ^:call getchar()                         |
+    ]])
+    api.nvim__redraw({ flush = true })
+    screen:expect([[
+      46                                      |
+      47                                      |
+      48                                      |
+      49                                      |
+      50                                      |
+      51                                      |
+      52                                      |
+      ^:call getchar()                         |
+    ]])
   end)
 end)

@@ -241,7 +241,7 @@ end
 ---
 --- The returned function has an optional {config} parameter that accepts |vim.lsp.ListOpts|
 ---
----@param map_result fun(resp, bufnr: integer, position_encoding: 'utf-8'|'utf-16'|'utf-32'): table to convert the response
+---@param map_result fun(resp: any, bufnr: integer, position_encoding: 'utf-8'|'utf-16'|'utf-32'): table to convert the response
 ---@param entity string name of the resource used in a `not found` error message
 ---@param title_fn fun(ctx: lsp.HandlerContext): string Function to call to generate list title
 ---@return lsp.Handler
@@ -588,12 +588,8 @@ NSC['window/showMessage'] = function(_, params, ctx)
   if not client then
     err_message('LSP[', client_name, '] client has shut down after sending ', message)
   end
-  if message_type == protocol.MessageType.Error then
-    err_message('LSP[', client_name, '] ', message)
-  else
-    message = ('LSP[%s][%s] %s\n'):format(client_name, protocol.MessageType[message_type], message)
-    api.nvim_echo({ { message } }, true, {})
-  end
+  message = ('LSP[%s] %s'):format(client_name, message)
+  vim.notify(message, log._from_lsp_level(message_type))
   return params
 end
 

@@ -586,6 +586,7 @@ function Screen:expect(expected, attr_ids, ...)
             after = after:sub(e + 1)
           end
         end
+        pat = pat and '^' .. pat .. '$'
         if row ~= actual_rows[i] and (not pat or not actual_rows[i]:match(pat)) then
           msg_expected_rows[i] = '*' .. msg_expected_rows[i]
           if i <= #actual_rows then
@@ -1514,7 +1515,11 @@ function Screen:_extstate_repr(attr_state)
 
   local msg_history = {}
   for i, entry in ipairs(self.msg_history) do
-    msg_history[i] = { kind = entry[1], content = self:_chunks_repr(entry[2], attr_state) }
+    msg_history[i] = {
+      kind = entry[1],
+      content = self:_chunks_repr(entry[2], attr_state),
+      append = entry[3] or nil,
+    }
   end
 
   local win_viewport = (next(self.win_viewport) and self.win_viewport) or nil

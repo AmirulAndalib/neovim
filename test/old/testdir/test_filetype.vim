@@ -142,6 +142,8 @@ func s:GetFilenameChecks() abort
     \ 'blank': ['file.bl'],
     \ 'blueprint': ['file.blp'],
     \ 'bp': ['Android.bp'],
+    \ 'brighterscript': ['file.bs'],
+    \ 'brightscript': ['file.brs'],
     \ 'bsdl': ['file.bsd', 'file.bsdl'],
     \ 'bst': ['file.bst'],
     \ 'bzl': ['file.bazel', 'file.bzl', 'WORKSPACE', 'WORKSPACE.bzlmod'],
@@ -298,7 +300,7 @@ func s:GetFilenameChecks() abort
     \ 'func': ['file.fc'],
     \ 'fusion': ['file.fusion'],
     \ 'fvwm': ['/.fvwm/file', 'any/.fvwm/file'],
-    \ 'gdb': ['.gdbinit', 'gdbinit', 'file.gdb', '.config/gdbearlyinit', '.gdbearlyinit'],
+    \ 'gdb': ['.gdbinit', 'gdbinit', '.cuda-gdbinit', 'cuda-gdbinit', 'file.gdb', '.config/gdbearlyinit', '.gdbearlyinit'],
     \ 'gdmo': ['file.mo', 'file.gdmo'],
     \ 'gdresource': ['file.tscn', 'file.tres'],
     \ 'gdscript': ['file.gd'],
@@ -2598,6 +2600,12 @@ func Test_ll_file()
   call writefile(['target triple = "nvptx64-nvidia-cuda"'], 'Xfile.ll', 'D')
   split Xfile.ll
   call assert_equal('llvm', &filetype)
+  bwipe!
+
+  " lex (C++)
+  call writefile(['%{', '#include <iostream>', '%}'], 'Xfile.ll', 'D')
+  split Xfile.ll
+  call assert_equal('lex', &filetype)
   bwipe!
 
   " lifelines

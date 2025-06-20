@@ -613,8 +613,8 @@ void ui_check_mouse(void)
     checkfor = MOUSE_INSERT;
   } else if (State & MODE_CMDLINE) {
     checkfor = MOUSE_COMMAND;
-  } else if (State == MODE_CONFIRM || State == MODE_EXTERNCMD) {
-    checkfor = ' ';  // don't use mouse for ":confirm" or ":!cmd"
+  } else if (State == MODE_EXTERNCMD) {
+    checkfor = ' ';  // don't use mouse for ":!cmd"
   }
 
   // mouse should be active if at least one of the following is true:
@@ -759,9 +759,6 @@ void ui_call_event(char *name, bool fast, Array args)
     uint32_t ns_id = ui_event_ns_id;
     Object res = nlua_call_ref_ctx(fast, event_cb->cb, name, args, kRetNilBool, NULL, &err);
     ui_event_ns_id = 0;
-    // TODO(bfredl/luukvbaal): should this be documented or reconsidered?
-    // Why does truthy return from Lua callback mean remote UI should not receive
-    // the event.
     if (LUARET_TRUTHY(res)) {
       handled = true;
     }

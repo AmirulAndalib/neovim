@@ -2889,6 +2889,7 @@ void ex_append(exarg_T *eap)
     }
   }
   State = MODE_NORMAL;
+  ui_cursor_shape();
 
   if (eap->forceit) {
     curbuf->b_p_ai = !curbuf->b_p_ai;
@@ -3716,12 +3717,7 @@ static int do_sub(exarg_T *eap, const proftime_T timeout, const int cmdpreview_n
 
         if (subflags.do_ask && cmdpreview_ns <= 0) {
           int typed = 0;
-
-          // change State to MODE_CONFIRM, so that the mouse works
-          // properly
           int save_State = State;
-          State = MODE_CONFIRM;
-          setmouse();                   // disable mouse in xterm
           curwin->w_cursor.col = regmatch.startpos[0].col;
 
           if (curwin->w_p_crb) {

@@ -448,6 +448,7 @@ static void uc_list(char *name, size_t name_len)
 {
   bool found = false;
 
+  msg_ext_set_kind("list_cmd");
   // In cmdwin, the alternative buffer should be used.
   const garray_T *gap = &prevwin_curwin()->w_buffer->b_ucmds;
   while (true) {
@@ -491,17 +492,21 @@ static void uc_list(char *name, size_t name_len)
         msg_putchar('|');
         len--;
       }
-      while (len-- > 0) {
-        msg_putchar(' ');
+      if (len != 0) {
+        msg_puts(&"    "[4 - len]);
       }
 
       msg_outtrans(cmd->uc_name, HLF_D, false);
       len = strlen(cmd->uc_name) + 4;
 
-      do {
-        msg_putchar(' ');
-        len++;
-      } while (len < 22);
+      if (len < 21) {
+        // Field padding spaces   12345678901234567
+        static char spaces[18] = "                 ";
+        msg_puts(&spaces[len - 4]);
+        len = 21;
+      }
+      msg_putchar(' ');
+      len++;
 
       // "over" is how much longer the name is than the column width for
       // the name, we'll try to align what comes after.

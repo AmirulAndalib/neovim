@@ -29,6 +29,7 @@
 #include "nvim/ex_cmds_defs.h"
 #include "nvim/ex_docmd.h"
 #include "nvim/ex_eval.h"
+#include "nvim/ex_getln.h"
 #include "nvim/fileio.h"
 #include "nvim/garray.h"
 #include "nvim/garray_defs.h"
@@ -1052,6 +1053,11 @@ static void msg_hist_add_multihl(HlMessage msg, bool temp)
   entry->kind = msg_ext_kind;
   entry->prev = msg_hist_last;
   entry->next = NULL;
+  // NOTE: this does not encode if the message was actually appended to the
+  // previous entry in the message history. However append is currently only
+  // true for :echon, which is stored in the history as a temporary entry for
+  // "g<" where it is guaranteed to be after the entry it was appended to.
+  entry->append = msg_ext_append;
 
   if (msg_hist_first == NULL) {
     msg_hist_first = entry;
@@ -1187,10 +1193,12 @@ void ex_messages(exarg_T *eap)
   Array entries = ARRAY_DICT_INIT;
   MessageHistoryEntry *p = eap->skip ? msg_hist_temp : msg_hist_first;
   int skip = eap->addr_count ? (msg_hist_len - eap->line2) : 0;
-  while (p != NULL) {
+  for (; p != NULL; p = p->next) {
+    // Skip over count or temporary "g<" messages.
     if ((p->temp && !eap->skip) || skip-- > 0) {
-      // Skipping over count or temporary "g<" messages.
-    } else if (ui_has(kUIMessages)) {
+      continue;
+    }
+    if (ui_has(kUIMessages) && !msg_silent) {
       Array entry = ARRAY_DICT_INIT;
       ADD(entry, CSTR_TO_OBJ(p->kind));
       Array content = ARRAY_DICT_INIT;
@@ -1203,11 +1211,14 @@ void ex_messages(exarg_T *eap)
         ADD(content, ARRAY_OBJ(content_entry));
       }
       ADD(entry, ARRAY_OBJ(content));
+      ADD(entry, BOOLEAN_OBJ(p->append));
       ADD(entries, ARRAY_OBJ(entry));
-    } else {
-      msg_multihl(p->msg, p->kind, false, false);
     }
-    p = p->next;
+    if (redirecting() || !ui_has(kUIMessages)) {
+      msg_silent += ui_has(kUIMessages);
+      msg_multihl(p->msg, p->kind, false, false);
+      msg_silent -= ui_has(kUIMessages);
+    }
   }
   if (kv_size(entries) > 0) {
     ui_call_msg_history_show(entries);
@@ -3068,13 +3079,17 @@ void msg_moremsg(bool full)
 }
 
 /// Repeat the message for the current mode: MODE_ASKMORE, MODE_EXTERNCMD,
-/// MODE_CONFIRM or exmode_active.
+/// confirm() prompt or exmode_active.
 void repeat_message(void)
 {
+  if (ui_has(kUIMessages)) {
+    return;
+  }
+
   if (State == MODE_ASKMORE) {
     msg_moremsg(true);          // display --more-- message again
     msg_row = Rows - 1;
-  } else if (State == MODE_CONFIRM) {
+  } else if (State == MODE_CMDLINE && confirm_msg != NULL) {
     display_confirm_msg();      // display ":confirm" message again
     msg_row = Rows - 1;
   } else if (State == MODE_EXTERNCMD) {
@@ -3546,8 +3561,6 @@ int do_dialog(int type, const char *title, const char *message, const char *butt
   int oldState = State;
 
   msg_silent = 0;  // If dialog prompts for input, user needs to see it! #8788
-  State = MODE_CONFIRM;
-  setmouse();
 
   // Since we wait for a keypress, don't make the
   // user press RETURN as well afterwards.
@@ -3604,6 +3617,8 @@ int do_dialog(int type, const char *title, const char *message, const char *butt
   }
 
   xfree(hotkeys);
+  xfree(confirm_msg);
+  confirm_msg = NULL;
 
   msg_silent = save_msg_silent;
   State = oldState;
@@ -3684,7 +3699,6 @@ static char *console_dialog_alloc(const char *message, const char *buttons, bool
   }
 
   // Now allocate space for the strings
-  xfree(confirm_msg);
   confirm_msg = xmalloc((size_t)msg_len);
   snprintf(confirm_msg, (size_t)msg_len, "\n%s\n", message);
 

@@ -534,6 +534,42 @@ describe('ui/ext_messages', function()
         },
       },
     })
+
+    command('command Foo Bar')
+    feed(':command<CR>')
+    screen:expect({
+      grid = [[
+        line 1                   |
+        ^line                     |
+        {1:~                        }|*3
+      ]],
+      cmdline = { { abort = false } },
+      messages = {
+        {
+          content = {
+            { '\n    Name              Args Address Complete    Definition', 101, 23 },
+            { '\n    ' },
+            { 'Foo', 18, 5 },
+            { '               0                        Bar' },
+          },
+          kind = 'list_cmd',
+        },
+      },
+    })
+
+    feed(':version<CR>')
+    screen:expect({
+      grid = [[
+        line 1                   |
+        ^line                     |
+        {1:~                        }|*3
+      ]],
+      cmdline = { { abort = false } },
+      condition = function()
+        eq('list_cmd', screen.messages[1].kind)
+        screen.messages = {}
+      end,
+    })
   end)
 
   it(':echoerr', function()
@@ -1604,14 +1640,21 @@ stack traceback:
   end)
 
   it('g< mapping shows recent messages', function()
-    command('echo "foo" | echo "bar"')
+    feed(':echo "foo" | echo "bar" | echon "baz"<CR>')
     screen:expect({
       grid = [[
         ^                         |
         {1:~                        }|*4
       ]],
+      cmdline = { { abort = false } },
       messages = {
+        { content = { { 'foo' } }, kind = 'echo' },
         { content = { { 'bar' } }, kind = 'echo' },
+        { content = { { 'baz' } }, kind = 'echo', append = true },
+        {
+          content = { { 'Press ENTER or type command to continue', 6, 18 } },
+          kind = 'return_prompt',
+        },
       },
     })
     feed('g<lt>')
@@ -1627,14 +1670,9 @@ stack traceback:
         },
       },
       msg_history = {
-        {
-          content = { { 'foo' } },
-          kind = 'echo',
-        },
-        {
-          content = { { 'bar' } },
-          kind = 'echo',
-        },
+        { content = { { 'foo' } }, kind = 'echo' },
+        { content = { { 'bar' } }, kind = 'echo' },
+        { content = { { 'baz' } }, kind = 'echo', append = true },
       },
     })
     feed('Q')
@@ -1715,6 +1753,57 @@ stack traceback:
         { content = { { 'foo' } }, kind = 'echo' },
         { content = { { ' bar' } }, kind = 'echo', append = true },
         { content = { { ' baz' } }, kind = 'echo', append = true },
+        {
+          content = { { 'Press ENTER or type command to continue', 6, 18 } },
+          kind = 'return_prompt',
+        },
+      },
+    })
+  end)
+
+  it('can capture execute("messages"))', function()
+    feed('Q')
+    screen:expect({
+      grid = [[
+        ^                         |
+        {1:~                        }|*4
+      ]],
+      messages = {
+        {
+          content = { { "E354: Invalid register name: '^@'", 9, 6 } },
+          history = true,
+          kind = 'emsg',
+        },
+      },
+    })
+    feed(':let msg = execute("messages")<CR>')
+    screen:expect({
+      grid = [[
+        ^                         |
+        {1:~                        }|*4
+      ]],
+      cmdline = { { abort = false } },
+    })
+    eq("E354: Invalid register name: '^@'", eval('msg'):gsub('\n', ''))
+  end)
+
+  it('single event for multi-expr :echo', function()
+    command('echo 1 2 | echon 1 2')
+    screen:expect({
+      grid = [[
+        ^                         |
+        {1:~                        }|*4
+      ]],
+      messages = {
+        {
+          content = { { '1 2' } },
+          kind = 'echo',
+        },
+        {
+          append = true,
+          content = { { '12' } },
+          kind = 'echo',
+        },
         {
           content = { { 'Press ENTER or type command to continue', 6, 18 } },
           kind = 'return_prompt',
@@ -2646,6 +2735,11 @@ describe('pager', function()
       [10] = { background = Screen.colors.Grey100, bold = true, foreground = tonumber('0xe5e5ff') },
       [11] = { background = Screen.colors.Grey100, bold = true, foreground = tonumber('0x2b8452') },
       [12] = { bold = true, reverse = true },
+      [13] = { foreground = Screen.colors.Grey0 },
+      [14] = { foreground = Screen.colors.Grey90 },
+      [15] = { foreground = tonumber('0x00000c') },
+      [16] = { bold = true, foreground = tonumber('0xe5e5ff') },
+      [17] = { bold = true, foreground = tonumber('0x2b8452') },
     })
     command('set more')
 
@@ -2979,60 +3073,52 @@ aliquip ex ea commodo consequat.]]
   it('clears "-- more --" message', function()
     command('hi MsgArea guisp=Yellow blend=10')
     feed(':echon join(range(20), "\\n")<cr>')
-    screen:expect {
-      grid = [[
-      {7:0}{8:                                  }|
-      {9:1}{10:                                  }|
-      {9:2}{10:                                  }|
-      {9:3}{10:                                  }|
-      {9:4}{10:                                  }|
-      {9:5}{10:                                  }|
-      {9:6}{10:                                  }|
-      {11:--}{8: }{11:More}{8: }{11:--}{8:^                         }|
-    ]],
-    }
+    screen:expect([[
+      {13:0}{14:                                  }|
+      {15:1}{16:                                  }|
+      {15:2}{16:                                  }|
+      {15:3}{16:                                  }|
+      {15:4}{16:                                  }|
+      {15:5}{16:                                  }|
+      {15:6}{16:                                  }|
+      {17:--}{14: }{17:More}{14: }{17:--}{14:^                         }|
+    ]])
 
     feed('j')
-    screen:expect {
-      grid = [[
-      {7:1}{8:                                  }|
-      {9:2}{10:                                  }|
-      {9:3}{10:                                  }|
-      {9:4}{10:                                  }|
-      {9:5}{10:                                  }|
-      {9:6}{10:                                  }|
-      {9:7}{10:                                  }|
-      {11:--}{8: }{11:More}{8: }{11:--}{8:^                         }|
-    ]],
-    }
+    screen:expect([[
+      {13:1}{14:                                  }|
+      {15:2}{16:                                  }|
+      {15:3}{16:                                  }|
+      {15:4}{16:                                  }|
+      {15:5}{16:                                  }|
+      {15:6}{16:                                  }|
+      {15:7}{16:                                  }|
+      {17:--}{14: }{17:More}{14: }{17:--}{14:^                         }|
+    ]])
 
     feed('k')
-    screen:expect {
-      grid = [[
-      {7:0}{8:                                  }|
-      {9:1}{10:                                  }|
-      {9:2}{10:                                  }|
-      {9:3}{10:                                  }|
-      {9:4}{10:                                  }|
-      {9:5}{10:                                  }|
-      {9:6}{10:                                  }|
-      {11:--}{8: }{11:More}{8: }{11:--}{8:^                         }|
-    ]],
-    }
+    screen:expect([[
+      {13:0}{14:                                  }|
+      {15:1}{16:                                  }|
+      {15:2}{16:                                  }|
+      {15:3}{16:                                  }|
+      {15:4}{16:                                  }|
+      {15:5}{16:                                  }|
+      {15:6}{16:                                  }|
+      {17:--}{14: }{17:More}{14: }{17:--}{14:^                         }|
+    ]])
 
     feed('j')
-    screen:expect {
-      grid = [[
-      {7:1}{8:                                  }|
-      {9:2}{10:                                  }|
-      {9:3}{10:                                  }|
-      {9:4}{10:                                  }|
-      {9:5}{10:                                  }|
-      {9:6}{10:                                  }|
-      {9:7}{10:                                  }|
-      {11:--}{8: }{11:More}{8: }{11:--}{8:^                         }|
-    ]],
-    }
+    screen:expect([[
+      {13:1}{14:                                  }|
+      {15:2}{16:                                  }|
+      {15:3}{16:                                  }|
+      {15:4}{16:                                  }|
+      {15:5}{16:                                  }|
+      {15:6}{16:                                  }|
+      {15:7}{16:                                  }|
+      {17:--}{14: }{17:More}{14: }{17:--}{14:^                         }|
+    ]])
   end)
 
   it('with :!cmd does not crash on resize', function()

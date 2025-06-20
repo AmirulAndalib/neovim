@@ -329,6 +329,7 @@ end
 --- capabilities.
 --- @return lsp.ClientCapabilities
 function protocol.make_client_capabilities()
+  ---@type lsp.ClientCapabilities
   return {
     general = {
       positionEncodings = {
@@ -340,6 +341,10 @@ function protocol.make_client_capabilities()
     textDocument = {
       diagnostic = {
         dynamicRegistration = false,
+        tagSupport = {
+          valueSet = get_value_set(constants.DiagnosticTag),
+        },
+        dataSupport = true,
       },
       inlayHint = {
         dynamicRegistration = true,
@@ -399,8 +404,7 @@ function protocol.make_client_capabilities()
         },
 
         overlappingTokenSupport = true,
-        -- TODO(jdrouhard): Add support for this
-        multilineTokenSupport = false,
+        multilineTokenSupport = true,
         serverCancelSupport = false,
         augmentsSyntaxTokens = true,
       },
@@ -426,6 +430,7 @@ function protocol.make_client_capabilities()
         resolveSupport = {
           properties = { 'edit', 'command' },
         },
+        disabledSupport = true,
       },
       codeLens = {
         dynamicRegistration = false,
@@ -436,6 +441,9 @@ function protocol.make_client_capabilities()
       foldingRange = {
         dynamicRegistration = false,
         lineFoldingOnly = true,
+        foldingRangeKind = {
+          valueSet = { 'comment', 'imports', 'region' },
+        },
         foldingRange = {
           collapsedText = true,
         },
@@ -523,7 +531,6 @@ function protocol.make_client_capabilities()
         prepareSupport = true,
       },
       publishDiagnostics = {
-        relatedInformation = true,
         tagSupport = {
           valueSet = get_value_set(constants.DiagnosticTag),
         },
@@ -534,6 +541,9 @@ function protocol.make_client_capabilities()
       },
       colorProvider = {
         dynamicRegistration = true,
+      },
+      selectionRange = {
+        dynamicRegistration = false,
       },
     },
     workspace = {
@@ -565,6 +575,9 @@ function protocol.make_client_capabilities()
       },
       inlayHint = {
         refreshSupport = true,
+      },
+      workspace = {
+        refreshSupport = false,
       },
     },
     experimental = nil,
